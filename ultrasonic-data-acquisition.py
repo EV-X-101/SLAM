@@ -1,5 +1,7 @@
 import RPi.GPIO as GPIO
 import time
+import socket
+import json
 
 # Ultrasonic Sensor 1 GPIO pins
 TRIG_PIN_1 = 20
@@ -30,6 +32,10 @@ ECHO_PIN_FRONT_RIGHT = 25
 # Front Left Ultrasonic sensor GPIO pins
 TRIG_PIN_FRONT_LEFT = 26
 ECHO_PIN_FRONT_LEFT = 19
+
+# TCP/IP client configuration
+SERVER_IP = 'PC_IP_ADDRESS'  # Replace with the actual IP address of the PC
+SERVER_PORT = 5000  # Replace with the desired port number
 
 # Setup GPIO
 GPIO.setmode(GPIO.BCM)
@@ -98,7 +104,13 @@ def get_distance(trig_pin, echo_pin):
 
     return distance
 
+# Create a TCP/IP socket
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 try:
+    # Connect to the server
+    client_socket.connect((SERVER_IP, SERVER_PORT))
+
     # Initialize the servo motors
     servo_pwm_1.start(0)
     servo_pwm_2.start(0)
@@ -135,16 +147,26 @@ try:
         dist_front_right = get_distance(TRIG_PIN_FRONT_RIGHT, ECHO_PIN_FRONT_RIGHT)
         dist_front_left = get_distance(TRIG_PIN_FRONT_LEFT, ECHO_PIN_FRONT_LEFT)
         
-        print(f"Angle 1: {current_angle_1} | Distance 1: {dist_1} cm")
-        print(f"Angle 2: {current_angle_2} | Distance 2: {dist_2} cm")
-        print(f"Rear Left Distance: {dist_rear_left} cm")
-        print(f"Rear Right Distance: {dist_rear_right} cm")
-        print(f"Front Right Distance: {dist_front_right} cm")
-        print(f"Front Left Distance: {dist_front_left} cm")
+        # Create a dictionary with the sensor data
+        sensor_data = {
+            'distance1': dist_1,
+            'distance2': dist_2,
+            'rear_left': dist_rear_left,
+            'rear_right': dist_rear_right,
+            'front_right': dist_front_right,
+            'front_left': dist_front_left,
+        }
         
+        # Convert the sensor data to JSON format
+        data_json = json.dumps(sensor_data)
+
+        # Send the data over the TCP/IP connection
+        client_socket.sendall(data_json.encode())
+
         time.sleep(0.5)
 
 except KeyboardInterrupt:
     servo_pwm_1.stop()
     servo_pwm_2.stop()
+    client_socket.close()
     GPIO.cleanup()
